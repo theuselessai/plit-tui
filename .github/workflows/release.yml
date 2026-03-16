@@ -175,6 +175,12 @@ jobs:
         if: ${{ !matrix.use_cross }}
         run: cargo build --release --target ${{ matrix.target }} ${{ matrix.features }}
 
+      - name: Verify i586 binary (no SSE)
+        if: matrix.target == 'i586-unknown-linux-musl'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq qemu-user > /dev/null
+          qemu-i386 -cpu pentium target/${{ matrix.target }}/release/plit-tui --help
+
       - name: Strip binary (unix)
         if: runner.os != 'Windows'
         run: strip target/${{ matrix.target }}/release/plit-tui || true
