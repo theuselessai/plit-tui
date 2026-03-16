@@ -1,0 +1,29 @@
+{{#if (gt props.area.width 99)}}
+<layout direction='horizontal'>
+    <constraint type='{"length":30}'>
+        <component template="agent_list"/>
+    </constraint>
+    <constraint type='{"length":1}'>
+        <paragraph><line><span> </span></line></paragraph>
+    </constraint>
+    <constraint type='{"min":1}'>
+        <layout direction='vertical'>
+            <constraint type='{"min":1}'>
+                <component template="messages"/>
+            </constraint>
+            <constraint type='{"min":1,"max":5}'>
+                <component template="input_box"/>
+            </constraint>
+        </layout>
+    </constraint>
+</layout>
+{{else}}
+<layout direction='vertical'>
+    <constraint type='{"min":1}'>
+        <component template="messages"/>
+    </constraint>
+    <constraint type='{"min":1,"max":5}'>
+        <component template="input_box"/>
+    </constraint>
+</layout>
+{{/if}}

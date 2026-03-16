@@ -1,0 +1,22 @@
+<layout direction='vertical'>
+    <constraint type='{"length":1}'>
+        <component template="tabs"/>
+    </constraint>
+    <constraint type='{"min":1}'>
+        {{#if (eq props.store.tabs_selection 0)}}
+            <component template="agent_list"/>
+        {{/if}}
+        {{#if (eq props.store.tabs_selection 1)}}
+            <component template="chat"/>
+        {{/if}}
+    </constraint>
+    <constraint type='{"length":1}'>
+        <tool_bar/>
+    </constraint>
+    <constraint type='{"length":1}'>
+        <component template="status_bar"/>
+    </constraint>
+    <constraint type='{"length":1}'>
+        <component template="command_bar"/>
+    </constraint>
+</layout>

@@ -1,0 +1,38 @@
+<layout direction='horizontal'>
+    <constraint type='{"min":1}'>
+        <paragraph styles='{"bg": "black"}'>
+            {{#with props.store}}
+            <line>
+                <span> </span>
+                {{~#if (eq mode "insert")~}}
+                <span styles='{"fg": "white"}'> ◆ write    </span>
+                {{~/if~}}
+                {{~#if (eq mode "normal")~}}
+                <span styles='{"fg": "white"}'> ◇ navigate </span>
+                {{~/if~}}
+                {{~#if (eq mode "command")~}}
+                <span styles='{"fg": "white"}'> ▷ command  </span>
+                {{~/if~}}
+                {{~#if (eq ws_status "connected")~}}
+                <span styles='{"fg": "green"}'> ● </span><span styles='{"fg": "white"}'>{{host_display}}</span>
+                {{~/if~}}
+                {{~#if (eq ws_status "disconnected")~}}
+                <span styles='{"fg": "grey"}'> ○ disconnected</span>
+                {{~/if~}}
+                {{~#if (eq ws_status "reconnecting")~}}
+                <span styles='{"fg": "yellow"}'> ◌ reconnecting...</span>
+                {{~/if~}}
+            </line>
+            {{/with}}
+        </paragraph>
+    </constraint>
+    <constraint type='{"length":12}'>
+        <paragraph styles='{"bg": "black"}' alignment='{"position": "Right"}'>
+            {{#with props.store}}
+            {{~#if scroll_indicator~}}
+            <line><span styles='{"fg": "yellow"}'>{{scroll_indicator}} </span></line>
+            {{~/if~}}
+            {{/with}}
+        </paragraph>
+    </constraint>
+</layout>

@@ -1,0 +1,56 @@
+[package]
+name = "plit-tui"
+version = "0.1.1"
+edition = "2024"
+description = "Terminal UI for the plit ecosystem"
+license = "Apache-2.0"
+repository = "https://github.com/theuselessai/plit-tui"
+keywords = ["ai", "agent", "tui", "pipelit", "terminal"]
+categories = ["command-line-utilities"]
+
+[lib]
+name = "plit_tui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "plit-tui"
+path = "src/main.rs"
+
+[dependencies]
+# TUI
+ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
+crossterm = { version = "0.28", features = ["event-stream"] }
+
+# Templates
+handlebars = "6"
+quick-xml = "0.37"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+
+# HTTP + WebSocket
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+tokio-tungstenite = "0.26"
+futures-util = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Utilities
+anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+dirs = "6"
+chrono = { version = "0.4", features = ["serde"] }
+unicode-width = "0.2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+default = ["rustls-tls"]
+rustls-tls = ["reqwest/rustls-tls", "tokio-tungstenite/rustls-tls-webpki-roots"]
+native-tls-vendored = ["reqwest/native-tls-vendored", "tokio-tungstenite/native-tls"]
