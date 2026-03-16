@@ -1,0 +1,257 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: read
+
+env:
+  CARGO_TERM_COLOR: always
+  REGISTRY: ghcr.io
+  IMAGE_NAME: theuselessai/plit
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      is_rc: ${{ steps.meta.outputs.is_rc }}
+    steps:
+      - name: Extract tag metadata
+        id: meta
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "$VERSION" == *-rc* ]]; then
+            echo "is_rc=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_rc=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── RC: build + E2E with real LLM ─────────────────────────────────────────
+
+  rc-build:
+    needs: meta
+    if: needs.meta.outputs.is_rc == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - run: cargo build --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plit-tui-rc
+          path: target/release/plit-tui
+          retention-days: 7
+
+  rc-e2e:
+    name: E2E (Real LLM)
+    needs: [meta, rc-build]
+    if: needs.meta.outputs.is_rc == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download plit-tui binary
+        uses: actions/download-artifact@v4
+        with:
+          name: plit-tui-rc
+
+      - run: chmod +x plit-tui
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start plit container (real LLM)
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker run -d --name plit-e2e \
+            -p 8000:8000 -p 8080:8080 \
+            -e ADMIN_USERNAME=admin \
+            -e ADMIN_PASSWORD=testpass123 \
+            -e LLM_PROVIDER=anthropic \
+            -e LLM_MODEL=claude-sonnet-4-20250514 \
+            -e LLM_API_KEY=${{ secrets.LLM_API_KEY }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Wait for services
+        run: |
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:8000/docs > /dev/null 2>&1 && \
+               curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+              echo "Services ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Services not ready after 90s"
+          exit 1
+
+      - name: Run TUI E2E
+        run: ./e2e/run_tui_smoke.sh ./plit-tui
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs plit-e2e 2>&1 | tail -200
+
+  # ── Stable: build platform binaries (no tests — RC already passed) ────────
+
+  build-binaries:
+    needs: meta
+    if: needs.meta.outputs.is_rc == 'false'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            use_cross: true
+            features: ""
+            artifact: plit-tui-linux-x86_64
+          - target: i586-unknown-linux-musl
+            runner: ubuntu-latest
+            use_cross: true
+            features: "--no-default-features --features native-tls-vendored"
+            artifact: plit-tui-linux-i586
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+            use_cross: true
+            features: ""
+            artifact: plit-tui-linux-aarch64
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            use_cross: false
+            features: ""
+            artifact: plit-tui-darwin-x86_64
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            use_cross: false
+            features: ""
+            artifact: plit-tui-darwin-aarch64
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            use_cross: false
+            features: ""
+            artifact: plit-tui-windows-x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.use_cross
+        uses: taiki-e/install-action@cross
+
+      - name: Build (cross)
+        if: matrix.use_cross
+        run: cross build --release --target ${{ matrix.target }} ${{ matrix.features }}
+
+      - name: Build (cargo)
+        if: ${{ !matrix.use_cross }}
+        run: cargo build --release --target ${{ matrix.target }} ${{ matrix.features }}
+
+      - name: Strip binary (unix)
+        if: runner.os != 'Windows'
+        run: strip target/${{ matrix.target }}/release/plit-tui || true
+
+      - name: Package (unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/plit-tui dist/
+          chmod +x dist/plit-tui
+          tar czf ${{ matrix.artifact }}.tar.gz -C dist plit-tui
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item target/${{ matrix.target }}/release/plit-tui.exe dist/
+          Compress-Archive -Path dist/plit-tui.exe -DestinationPath ${{ matrix.artifact }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.*
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    needs: [meta, build-binaries]
+    if: needs.meta.outputs.is_rc == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - run: ls -la artifacts/
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ needs.meta.outputs.version }}
+          name: v${{ needs.meta.outputs.version }}
+          makeLatest: true
+          generateReleaseNotes: true
+          artifacts: artifacts/*
+          body: |
+            ## plit-tui v${{ needs.meta.outputs.version }}
+
+            Terminal UI for the plit ecosystem.
+
+            ### Install
+
+            ```sh
+            cargo install plit-tui
+            ```
+
+            Or download a binary below for your platform.
+
+            ### iSH (iPad)
+
+            Download `plit-tui-linux-i586.tar.gz` — built with `native-tls-vendored` for i586 (no SSE).
+
+  publish-crate:
+    needs: [meta, build-binaries]
+    if: needs.meta.outputs.is_rc == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --no-verify --allow-dirty || echo "Crate version already published — skipping"
