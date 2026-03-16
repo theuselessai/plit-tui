@@ -43,8 +43,7 @@ pub fn spawn_ws_task(
                     backoff = Duration::from_secs(1);
                     wslog("connected, entering handle_ws");
                     tx.send(Action::WsStatusChanged("connected".into())).ok();
-                    match handle_ws(ws_stream, &tx, &mut cmd_rx, &mut pending_subs, &cancel).await
-                    {
+                    match handle_ws(ws_stream, &tx, &mut cmd_rx, &mut pending_subs, &cancel).await {
                         Ok(()) => wslog("handle_ws returned Ok"),
                         Err(e) => wslog(&format!("handle_ws returned Err: {e}")),
                     }
@@ -65,9 +64,8 @@ pub fn spawn_ws_task(
     })
 }
 
-type WsStream = tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
->;
+type WsStream =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn connect_ws(base_url: &str, token: &str) -> anyhow::Result<WsStream> {
     let ws_base = base_url

@@ -34,7 +34,10 @@ impl PipelitClient {
             .await
             .map_err(|e| {
                 if e.is_connect() {
-                    anyhow::anyhow!("Cannot connect to {}. Is the server running?", self.base_url)
+                    anyhow::anyhow!(
+                        "Cannot connect to {}. Is the server running?",
+                        self.base_url
+                    )
                 } else {
                     anyhow::anyhow!("Request failed: {e}")
                 }

@@ -1,11 +1,11 @@
 use handlebars::Handlebars;
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::components::parsing::xml::parse;
 use crate::components::utils::props;
-use crate::components::xml::{create_element, El};
+use crate::components::xml::{El, create_element};
 use crate::structs::AppState;
 
 pub fn render(

@@ -1,6 +1,6 @@
 use handlebars::Handlebars;
 use ratatui::layout::Rect;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const EMBEDDED_TEMPLATES: &[(&str, &str)] = &[
     (

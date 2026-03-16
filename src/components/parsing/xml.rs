@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use handlebars::Handlebars;
-use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
+use quick_xml::events::{BytesStart, Event};
 use ratatui::layout::Alignment;
 use ratatui::style::{Color, Style};
 use serde_json::{Map, Value};

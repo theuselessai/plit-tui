@@ -31,22 +31,20 @@ impl Middleware for ApiMiddleware {
             }
 
             let nodes_running = state.json_store["nodes_running"].as_bool() == Some(true);
-            if !nodes_running
-                && let Some(ref client) = self.client
-            {
-                    let slug = state
-                        .workflows
-                        .get(state.selected_agent)
-                        .map(|w| w.slug.clone());
+            if !nodes_running && let Some(ref client) = self.client {
+                let slug = state
+                    .workflows
+                    .get(state.selected_agent)
+                    .map(|w| w.slug.clone());
 
-                    if let Some(slug) = slug {
-                        let client = Arc::clone(client);
-                        tokio::spawn(async move {
-                            if let Err(e) = client.send_chat_message(&slug, &text).await {
-                                tracing::warn!("Failed to send message: {e}");
-                            }
-                        });
-                    }
+                if let Some(slug) = slug {
+                    let client = Arc::clone(client);
+                    tokio::spawn(async move {
+                        if let Err(e) = client.send_chat_message(&slug, &text).await {
+                            tracing::warn!("Failed to send message: {e}");
+                        }
+                    });
+                }
             }
         }
 

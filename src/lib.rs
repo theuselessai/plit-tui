@@ -14,26 +14,25 @@ use std::time::Duration;
 
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyModifiers};
-use crossterm::terminal::{
-    EnterAlternateScreen, LeaveAlternateScreen,
-    disable_raw_mode, enable_raw_mode,
-};
 use crossterm::execute;
+use crossterm::terminal::{
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+};
 use futures_util::StreamExt;
 use handlebars::Handlebars;
-use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 use tokio_util::sync::CancellationToken;
 
 use crate::actions::Action;
 use crate::auth::AuthConfig;
 use crate::client::PipelitClient;
 use crate::components::app;
-use crate::components::helpers::{hb_macros, hb_utils};
 use crate::components::helpers::height_buffer::HEIGHT_BUFFER_HELPER;
+use crate::components::helpers::{hb_macros, hb_utils};
 use crate::components::utils::register_embedded_templates;
-use crate::middlewares::{DispatchResult, dispatch};
 use crate::middlewares::websocket::spawn_ws_task;
+use crate::middlewares::{DispatchResult, dispatch};
 use crate::structs::AppState;
 
 pub async fn run(url: Option<String>) -> Result<()> {
@@ -195,16 +194,17 @@ pub async fn run(url: Option<String>) -> Result<()> {
         }
 
         if let Some(ref action) = reduced_action
-            && matches!(action, Action::AgentSelect | Action::WsExecutionDone { success: true })
+            && matches!(
+                action,
+                Action::AgentSelect | Action::WsExecutionDone { success: true }
+            )
             && let Some(ref api) = api
             && let Some(w) = state.workflows.get(state.selected_agent)
         {
             let slug = w.slug.clone();
             ws_cmd_tx.send(format!("workflow:{slug}")).ok();
 
-            if matches!(action, Action::WsExecutionDone { .. })
-                && !state.message_queue.is_empty()
-            {
+            if matches!(action, Action::WsExecutionDone { .. }) && !state.message_queue.is_empty() {
                 let queued = state.message_queue.remove(0);
                 state.messages.push(crate::structs::ChatMessage {
                     role: "user".to_string(),

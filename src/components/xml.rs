@@ -5,8 +5,8 @@ use serde_json::Value;
 
 use crate::components::ele::powerline_tab::Tabs;
 use crate::components::parsing::xml::{
-    alignment_from_text, extract_text, get_ratio_value, get_u16_value, parse_attr, parse_str_list,
-    parse_styles, parse_text_attr, parse_usize, XmlElement,
+    XmlElement, alignment_from_text, extract_text, get_ratio_value, get_u16_value, parse_attr,
+    parse_str_list, parse_styles, parse_text_attr, parse_usize,
 };
 
 #[derive(Clone)]
