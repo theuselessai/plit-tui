@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  packages: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  REGISTRY: ghcr.io
+  IMAGE_NAME: theuselessai/plit
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - run: cargo test --all-features
+      - run: cargo build --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plit-tui-ci
+          path: target/release/plit-tui
+          retention-days: 1
+
+  e2e:
+    name: E2E (Mock LLM)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout Pipelit (mock LLM server)
+        uses: actions/checkout@v4
+        with:
+          repository: theuselessai/Pipelit
+          ref: master
+          sparse-checkout: e2e
+          path: pipelit
+
+      - name: Download plit-tui binary
+        uses: actions/download-artifact@v4
+        with:
+          name: plit-tui-ci
+
+      - run: chmod +x plit-tui
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start mock LLM server
+        run: python3 pipelit/e2e/mock_llm_server.py --port 9999 &
+
+      - name: Start plit container
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker run -d --name plit-e2e \
+            -p 8000:8000 -p 8080:8080 \
+            --add-host host.docker.internal:host-gateway \
+            -e ADMIN_USERNAME=admin \
+            -e ADMIN_PASSWORD=testpass123 \
+            -e LLM_PROVIDER=anthropic \
+            -e LLM_MODEL=mock-model \
+            -e LLM_API_KEY=mock-key \
+            -e LLM_BASE_URL=http://host.docker.internal:9999 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Wait for services
+        run: |
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:8000/docs > /dev/null 2>&1 && \
+               curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+              echo "Services ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Services not ready after 90s"
+          exit 1
+
+      - name: Run TUI E2E
+        run: ./e2e/run_tui_smoke.sh ./plit-tui
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs plit-e2e 2>&1 | tail -200
